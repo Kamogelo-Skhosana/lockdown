@@ -34,7 +34,8 @@ jobs:
         run: |
           sdk_root="$RUNNER_TEMP/android-sdk"
           mkdir -p "$sdk_root/cmdline-tools"
-          curl --fail --silent --show-error --location \
+          curl --fail --silent --show-error --location --http1.1 \
+            --retry 4 --retry-all-errors --retry-max-time 120 --connect-timeout 15 --max-time 120 \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
             --output "$RUNNER_TEMP/android-tools.zip"
           unzip -q "$RUNNER_TEMP/android-tools.zip" -d "$sdk_root/cmdline-tools"
