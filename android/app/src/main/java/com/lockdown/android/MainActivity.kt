@@ -78,6 +78,7 @@ private fun EmergencyFlow() {
     var completed by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     var draft by remember { mutableStateOf("") }
     var draftError by remember { mutableStateOf(false) }
+    var savedPlans by remember { mutableStateOf(Incident.entries.filter { storage.contains(it.name) }) }
     var confirmClearHistory by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     var screen by rememberSaveable { mutableStateOf(Screen.Splash) }
@@ -153,6 +154,7 @@ private fun EmergencyFlow() {
                     val editor = storage.edit()
                     Incident.entries.forEach { editor.remove(it.name) }
                     editor.apply()
+                    savedPlans = emptyList()
                     completed = arrayListOf()
                     confirmClearHistory = false
                 }) { Text("Clear history") }
@@ -197,12 +199,14 @@ private fun EmergencyFlow() {
                     Screen.Privacy -> Text("The offline checklist works on this device without an account.")
                     Screen.Home -> {
                         Text("Start with the incident. We’ll guide you through the first steps.")
-                        SecondaryAction("Recovery history") { screen = Screen.History }
+                        SecondaryAction("Recovery history") {
+                            savedPlans = Incident.entries.filter { storage.contains(it.name) }
+                            screen = Screen.History
+                        }
                     }
                     Screen.History -> {
-                        val saved = Incident.entries.filter { storage.contains(it.name) }
-                        if (saved.isEmpty()) Text("No saved recovery plans.")
-                        saved.forEach { plan ->
+                        if (savedPlans.isEmpty()) Text("No saved recovery plans.")
+                        savedPlans.forEach { plan ->
                             val steps = storage.getStringSet(plan.name, emptySet()).orEmpty()
                             val count = plan.steps.indices.count { it.toString() in steps }
                             SecondaryAction("${plan.label} · $count of ${plan.steps.size} complete") {
@@ -319,7 +323,7 @@ private fun EmergencyFlow() {
                     }
                     Screen.Incident -> SecondaryAction("Back to Home", ::goBack)
                     Screen.History -> {
-                        if (Incident.entries.any { storage.contains(it.name) }) {
+                        if (savedPlans.isNotEmpty()) {
                             Action("Clear history") { confirmClearHistory = true }
                         }
                         SecondaryAction("Back to Home", ::goBack)
