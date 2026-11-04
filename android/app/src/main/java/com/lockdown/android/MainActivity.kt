@@ -27,13 +27,28 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
-            MaterialTheme(colorScheme = colors) { EmergencyFlow() }
+            val preferences = remember { getSharedPreferences("appearance", Context.MODE_PRIVATE) }
+            var appearance by remember {
+                mutableStateOf(Appearance.entries.find { it.name == preferences.getString("theme", null) } ?: Appearance.System)
+            }
+            val dark = when (appearance) {
+                Appearance.System -> isSystemInDarkTheme()
+                Appearance.Light -> false
+                Appearance.Dark -> true
+            }
+            MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+                EmergencyFlow(appearance) { selection ->
+                    appearance = selection
+                    preferences.edit().putString("theme", selection.name).apply()
+                }
+            }
         }
     }
 }
 
-private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, AccountAccess, Checklist, History }
+private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, AccountAccess, Checklist, History, Settings, Help }
+
+private enum class Appearance { System, Light, Dark }
 
 private enum class Incident(val label: String, val steps: List<String>) {
     Account("Account takeover", listOf(
@@ -69,7 +84,7 @@ private enum class Incident(val label: String, val steps: List<String>) {
 }
 
 @Composable
-private fun EmergencyFlow() {
+private fun EmergencyFlow(appearance: Appearance, onAppearanceChange: (Appearance) -> Unit) {
     val context = LocalContext.current
     val storage = remember(context) {
         context.getSharedPreferences("recovery", Context.MODE_PRIVATE)
@@ -96,7 +111,8 @@ private fun EmergencyFlow() {
             Screen.Splash -> Screen.Splash
             Screen.Welcome, Screen.Home -> Screen.Splash
             Screen.Privacy -> Screen.Welcome
-            Screen.Incident, Screen.History -> Screen.Home
+            Screen.Incident, Screen.History, Screen.Settings -> Screen.Home
+            Screen.Help -> Screen.Settings
             Screen.Description -> Screen.Incident
             Screen.Consent -> Screen.Description
             Screen.AccountAccess -> {
@@ -142,6 +158,8 @@ private fun EmergencyFlow() {
         Screen.AccountAccess -> "Can you still sign in?"
         Screen.Checklist -> "Secure what you can"
         Screen.History -> "Recovery history"
+        Screen.Settings -> "Settings"
+        Screen.Help -> "Help"
     }
 
     if (confirmClearHistory) {
@@ -199,10 +217,46 @@ private fun EmergencyFlow() {
                     Screen.Privacy -> Text("The offline checklist works on this device without an account.")
                     Screen.Home -> {
                         Text("Start with the incident. We’ll guide you through the first steps.")
+                        SecondaryAction("Settings") { screen = Screen.Settings }
                         SecondaryAction("Recovery history") {
                             savedPlans = Incident.entries.filter { storage.contains(it.name) }
                             screen = Screen.History
                         }
+                    }
+                    Screen.Settings -> {
+                        Text("Appearance", Modifier.semantics { heading() })
+                        Appearance.entries.forEach { option ->
+                            FilterChip(
+                                selected = appearance == option,
+                                onClick = { onAppearanceChange(option) },
+                                label = { Text(option.name) },
+                            )
+                        }
+                        Text("Recovery privacy", Modifier.semantics { heading() })
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = saveProgress,
+                                onCheckedChange = { enabled ->
+                                    saveProgress = enabled
+                                    storage.edit().putBoolean("enabled", enabled).apply()
+                                },
+                            )
+                            Text("Save recovery progress on this device")
+                        }
+                        Text("Turning off saving keeps existing plans in Recovery history.")
+                        SecondaryAction("Manage recovery history") {
+                            savedPlans = Incident.entries.filter { storage.contains(it.name) }
+                            screen = Screen.History
+                        }
+                        SecondaryAction("Help") { screen = Screen.Help }
+                    }
+                    Screen.Help -> {
+                        Text("Can’t access an account?", Modifier.semantics { heading() })
+                        Text("Use the account provider’s official recovery page from a trusted device.")
+                        Text("Using Lockdown offline", Modifier.semantics { heading() })
+                        Text("Open the offline checklist from Home to see protective steps without internet.")
+                        Text("What data is shared?", Modifier.semantics { heading() })
+                        Text("Offline guidance stays on this device. Recovery progress is saved only if you enable saving.")
                     }
                     Screen.History -> {
                         if (savedPlans.isEmpty()) Text("No saved recovery plans.")
@@ -321,7 +375,8 @@ private fun EmergencyFlow() {
                         Action("Start an incident") { screen = Screen.Incident }
                         SecondaryAction("Open offline checklist") { openChecklist(Incident.Unknown) }
                     }
-                    Screen.Incident -> SecondaryAction("Back to Home", ::goBack)
+                    Screen.Incident, Screen.Settings -> SecondaryAction("Back to Home", ::goBack)
+                    Screen.Help -> SecondaryAction("Back to Settings", ::goBack)
                     Screen.History -> {
                         if (savedPlans.isNotEmpty()) {
                             Action("Clear history") { confirmClearHistory = true }
