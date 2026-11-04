@@ -109,3 +109,14 @@ def test_provider_rate_limit_uses_rolling_minute(monkeypatch):
     assert not meta.reserve_provider_request()
     assert meta.reserve_provider_request()
     assert not meta.reserve_provider_request()
+
+
+@pytest.mark.parametrize("action, expected_mode", [
+    ("official_account_recovery", "meta"),
+    ("https://example.com", "manual"),
+])
+def test_fenced_json_still_requires_approved_actions(action, expected_mode):
+    payload = response("high", [action])
+    part = payload["output"][0]["content"][0]
+    part["text"] = "```json\n" + part["text"] + "\n```"
+    assert meta.parse_assessment(payload)["mode"] == expected_mode
