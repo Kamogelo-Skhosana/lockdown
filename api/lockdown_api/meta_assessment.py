@@ -47,6 +47,9 @@ def parse_assessment(payload: Any) -> dict[str, Any]:
 
 
 def assess_with_meta(description: str) -> dict[str, Any]:
+    if os.getenv("META_MODEL_API_ENABLED", "true").strip().lower() != "true":
+        return MANUAL
+
     key = os.getenv("META_MODEL_API_KEY", "").strip()
     model = os.getenv("META_MODEL_ID", "").strip()
     if not key or not model:
