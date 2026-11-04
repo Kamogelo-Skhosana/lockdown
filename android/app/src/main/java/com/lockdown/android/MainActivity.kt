@@ -170,7 +170,11 @@ private fun EmergencyFlow(appearance: Appearance, onAppearanceChange: (Appearanc
     }
 
     LaunchedEffect(screen) {
-        if (screen == Screen.Analyzing) {
+        if ((screen == Screen.Analyzing && draft.isBlank()) ||
+            (screen == Screen.AssessmentReview && assessment == null)
+        ) {
+            screen = Screen.Description
+        } else if (screen == Screen.Analyzing) {
             val result = withContext(Dispatchers.IO) { requestAssessment(draft) }
             assessment = result
             assessmentFailed = result == null
