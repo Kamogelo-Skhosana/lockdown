@@ -1,6 +1,9 @@
 package com.lockdown.android
 
+import android.content.Context
 import android.os.Bundle
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Alignment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -56,6 +59,12 @@ private enum class Incident(val label: String, val steps: List<String>) {
 
 @Composable
 private fun EmergencyFlow() {
+    val context = LocalContext.current
+    val storage = remember(context) {
+        context.getSharedPreferences("recovery", Context.MODE_PRIVATE)
+    }
+    var saveProgress by remember { mutableStateOf(storage.getBoolean("enabled", false)) }
+    var completed by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     var screen by rememberSaveable { mutableStateOf(Screen.Splash) }
     var incident by rememberSaveable { mutableStateOf(Incident.Unknown) }
     var checklistBack by rememberSaveable { mutableStateOf(Screen.Incident) }
@@ -74,6 +83,10 @@ private fun EmergencyFlow() {
     fun openChecklist(selection: Incident) {
         checklistBack = screen
         incident = selection
+        completed = ArrayList(
+            if (saveProgress) storage.getStringSet(selection.name, emptySet()).orEmpty()
+            else emptySet(),
+        )
         screen = Screen.Checklist
     }
 
@@ -118,8 +131,40 @@ private fun EmergencyFlow() {
                     }
                     Screen.Checklist -> {
                         Text(incident.label, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
+                        val count = incident.steps.indices.count { it.toString() in completed }
+                        Text("$count of ${incident.steps.size} steps complete")
+                        if (count == incident.steps.size) {
+                            Text("Recovery steps complete", Modifier.semantics { heading() })
+                        }
                         incident.steps.forEachIndexed { index, step ->
-                            Text("${index + 1}. $step")
+                            val id = index.toString()
+                            val checked = id in completed
+                            OutlinedButton(
+                                onClick = {
+                                    val updated = completed.toMutableSet()
+                                    if (checked) updated.remove(id) else updated.add(id)
+                                    completed = ArrayList(updated)
+                                    if (saveProgress) {
+                                        storage.edit().putStringSet(incident.name, updated).apply()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            ) {
+                                val status = if (checked) "Complete" else "To do"
+                                Text("${index + 1}. $step\n$status")
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = saveProgress,
+                                onCheckedChange = { enabled ->
+                                    saveProgress = enabled
+                                    val editor = storage.edit().putBoolean("enabled", enabled)
+                                    if (enabled) editor.putStringSet(incident.name, completed.toSet())
+                                    editor.apply()
+                                },
+                            )
+                            Text("Save recovery progress on this device")
                         }
                     }
                 }
