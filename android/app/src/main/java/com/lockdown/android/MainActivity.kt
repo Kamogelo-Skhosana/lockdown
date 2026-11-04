@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Consent, Checklist }
+private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, Checklist }
 
 private enum class Incident(val label: String, val steps: List<String>) {
     Account("Account takeover", listOf(
@@ -65,17 +65,25 @@ private fun EmergencyFlow() {
     }
     var saveProgress by remember { mutableStateOf(storage.getBoolean("enabled", false)) }
     var completed by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+    var draft by remember { mutableStateOf("") }
+    var draftError by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
     var screen by rememberSaveable { mutableStateOf(Screen.Splash) }
     var incident by rememberSaveable { mutableStateOf(Incident.Unknown) }
     var checklistBack by rememberSaveable { mutableStateOf(Screen.Incident) }
 
     fun goBack() {
+        if (screen == Screen.Description && draft.isNotBlank()) {
+            confirmDiscard = true
+            return
+        }
         screen = when (screen) {
             Screen.Splash -> Screen.Splash
             Screen.Welcome, Screen.Home -> Screen.Splash
             Screen.Privacy -> Screen.Welcome
             Screen.Incident -> Screen.Home
-            Screen.Consent -> Screen.Incident
+            Screen.Description -> Screen.Incident
+            Screen.Consent -> Screen.Description
             Screen.Checklist -> checklistBack
         }
     }
@@ -98,13 +106,33 @@ private fun EmergencyFlow() {
         Screen.Privacy -> "You control your data"
         Screen.Home -> "What happened?"
         Screen.Incident -> "Choose an incident"
+        Screen.Description -> "Describe what happened"
         Screen.Consent -> "Online analysis"
         Screen.Checklist -> "Secure what you can"
     }
 
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Discard this draft?") },
+            text = { Text("Your description will be removed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    draft = ""
+                    draftError = false
+                    confirmDiscard = false
+                    screen = Screen.Incident
+                }) { Text("Discard draft") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text("Keep editing") }
+            },
+        )
+    }
+
     Scaffold { insets ->
         Column(
-            Modifier.fillMaxSize().padding(insets).padding(horizontal = 20.dp),
+            Modifier.fillMaxSize().padding(insets).imePadding().padding(horizontal = 20.dp),
         ) {
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
@@ -120,10 +148,28 @@ private fun EmergencyFlow() {
                         OutlinedButton(
                             onClick = {
                                 incident = option
-                                screen = Screen.Consent
+                                screen = Screen.Description
                             },
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         ) { Text(option.label) }
+                    }
+                    Screen.Description -> {
+                        Text("Tell us what you noticed and when it started.")
+                        Text("Leave out passwords, verification codes and payment details.")
+                        OutlinedTextField(
+                            value = draft,
+                            onValueChange = {
+                                draft = it
+                                draftError = false
+                            },
+                            label = { Text("Incident description") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3,
+                            isError = draftError,
+                            supportingText = {
+                                if (draftError) Text("Enter a description of up to 4,096 bytes.")
+                            },
+                        )
                     }
                     Screen.Consent -> {
                         Text("Online analysis is optional and is currently unavailable.")
@@ -188,12 +234,26 @@ private fun EmergencyFlow() {
                         SecondaryAction("Open offline checklist") { openChecklist(Incident.Unknown) }
                     }
                     Screen.Incident -> SecondaryAction("Back to Home", ::goBack)
+                    Screen.Description -> {
+                        Action("Review online analysis") {
+                            if (draft.isBlank() || draft.encodeToByteArray().size > 4096) {
+                                draftError = true
+                            } else {
+                                screen = Screen.Consent
+                            }
+                        }
+                        SecondaryAction("Continue offline") { openChecklist(incident) }
+                    }
                     Screen.Consent -> {
                         Action("Continue offline") { openChecklist(incident) }
-                        SecondaryAction("Choose another incident", ::goBack)
+                        SecondaryAction("Back to description", ::goBack)
                     }
                     Screen.Checklist -> {
-                        Action("Return to Home") { screen = Screen.Home }
+                        Action("Return to Home") {
+                            draft = ""
+                            draftError = false
+                            screen = Screen.Home
+                        }
                         if (checklistBack == Screen.Incident) {
                             SecondaryAction("Choose another incident", ::goBack)
                         }
