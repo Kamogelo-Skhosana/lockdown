@@ -48,6 +48,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96
         with:
           gradle-version: '8.11.1'
+      - name: Verify release signing guard
+        run: |
+          output="$RUNNER_TEMP/lockdown-signing-guard.log"
+          if gradle -p android :app:checkLockdownReleaseSigning > "$output" 2>&1; then
+            echo "Signing guard unexpectedly accepted missing credentials."
+            exit 1
+          fi
+          if ! grep -F 'Release signing requires a valid LOCKDOWN_KEYSTORE file' "$output"; then
+            cat "$output"
+            exit 1
+          fi
       - run: gradle -p android :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
         env:
           LOCKDOWN_ASSESSMENT_URL: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LOCKDOWN_ASSESSMENT_URL || '' }}
