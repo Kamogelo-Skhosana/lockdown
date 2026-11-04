@@ -1,3 +1,4 @@
+from collections import deque
 import io
 import json
 from urllib.error import HTTPError
@@ -93,3 +94,18 @@ def test_provider_timeout_consumes_attempt_and_prevents_next_call(monkeypatch):
     assert meta.assess_with_meta("Synthetic incident") == {"mode": "manual"}
     assert meta.assess_with_meta("Synthetic incident") == {"mode": "manual"}
     assert len(calls) == 1
+
+
+def test_provider_rate_limit_uses_rolling_minute(monkeypatch):
+    monkeypatch.setenv("META_MODEL_REQUEST_LIMIT", "3")
+    monkeypatch.setenv("META_MODEL_REQUESTS_PER_MINUTE", "2")
+    monkeypatch.setattr(meta, "_requests_started", 0)
+    monkeypatch.setattr(meta, "_recent_attempts", deque())
+    clock = iter([10.0, 20.0, 69.0, 70.0])
+    monkeypatch.setattr(meta, "monotonic", lambda: next(clock))
+
+    assert meta.reserve_provider_request()
+    assert meta.reserve_provider_request()
+    assert not meta.reserve_provider_request()
+    assert meta.reserve_provider_request()
+    assert not meta.reserve_provider_request()
