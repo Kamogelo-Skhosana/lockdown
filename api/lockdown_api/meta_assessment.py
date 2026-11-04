@@ -2,7 +2,9 @@
 
 import json
 import os
+from collections import deque
 from threading import Lock
+from time import monotonic
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -19,6 +21,7 @@ MANUAL = {"mode": "manual"}
 DEFAULT_REQUEST_LIMIT = 30
 _request_lock = Lock()
 _requests_started = 0
+_recent_attempts: deque[float] = deque()
 
 
 def reserve_provider_request() -> bool:
@@ -26,12 +29,19 @@ def reserve_provider_request() -> bool:
     global _requests_started
     try:
         limit = int(os.getenv("META_MODEL_REQUEST_LIMIT", str(DEFAULT_REQUEST_LIMIT)))
+        per_minute = int(os.getenv("META_MODEL_REQUESTS_PER_MINUTE", "6"))
     except ValueError:
         return False
 
     with _request_lock:
         if _requests_started >= limit:
             return False
+        now = monotonic()
+        while _recent_attempts and now - _recent_attempts[0] >= 60:
+            _recent_attempts.popleft()
+        if len(_recent_attempts) >= per_minute:
+            return False
+        _recent_attempts.append(now)
         _requests_started += 1
         return True
 
