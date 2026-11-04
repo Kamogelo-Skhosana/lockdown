@@ -6,7 +6,7 @@ Use synthetic descriptions throughout. Record the APK commit and checksum, Andro
 
 1. Open **Get emergency help → Start an incident → Payment fraud**.
 2. Enter “I noticed a card payment I did not make.” Open **Review online analysis** and choose **Agree and analyse**.
-3. Show the provisional assessment and approved bank-contact action. Record the actual risk and action returned. If the app offers manual guidance, record that as fallback and investigate before recording the online portion.
+3. Show the provisional assessment and approved bank-contact action. Tap **Open recovery steps** to show the two-step fraud checklist. Record the actual risk and action returned. If the app offers manual guidance, record that as fallback and investigate before recording the online portion.
 
 ## Offline recovery
 
@@ -23,4 +23,4 @@ Use synthetic descriptions throughout. Record the APK commit and checksum, Andro
 - [ ] Record a demo and verify each link from a reviewer-equivalent account using approved access.
 - [ ] Capture the submission receipt after authorized submission.
 
-Existing evidence includes a successful synthetic card-fraud result through the live adapter (#13), successful debug-build offline phone tests (#12 and #17), and verified local deletion (#19). The Android-to-Meta live run and signed release rehearsal remain pending.
+Existing evidence includes a successful synthetic card-fraud result through the live adapter (#13), successful debug-build offline phone tests (#12 and #17), and verified local deletion (#19). The owner verified the Android-to-Render-to-Meta card-fraud flow using [debug build #51](https://github.com/Kamogelo-Skhosana/lockdown/actions/runs/41925799661). The assessment displayed the approved bank-contact action. Opening recovery showed the bundled two-step fraud checklist. The deployed API also returned approved recovery actions for a synthetic account-lockout case. The account-lockout phone test and signed release rehearsal remain pending.
