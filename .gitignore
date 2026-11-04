@@ -1,0 +1,11 @@
+.idea/
+.gradle/
+build/
+local.properties
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.jks
+*.keystore
+*.apk
