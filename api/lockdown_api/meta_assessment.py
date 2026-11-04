@@ -2,6 +2,7 @@
 
 import json
 import os
+from threading import Lock
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -15,6 +16,24 @@ ACTION_IDS = frozenset({
     "lock_lost_device",
 })
 MANUAL = {"mode": "manual"}
+DEFAULT_REQUEST_LIMIT = 30
+_request_lock = Lock()
+_requests_started = 0
+
+
+def reserve_provider_request() -> bool:
+    """Reserve one attempt from the budget for this server process."""
+    global _requests_started
+    try:
+        limit = int(os.getenv("META_MODEL_REQUEST_LIMIT", str(DEFAULT_REQUEST_LIMIT)))
+    except ValueError:
+        return False
+
+    with _request_lock:
+        if _requests_started >= limit:
+            return False
+        _requests_started += 1
+        return True
 
 
 def parse_assessment(payload: Any) -> dict[str, Any]:
@@ -52,7 +71,7 @@ def assess_with_meta(description: str) -> dict[str, Any]:
 
     key = os.getenv("META_MODEL_API_KEY", "").strip()
     model = os.getenv("META_MODEL_ID", "").strip()
-    if not key or not model:
+    if not key or not model or not reserve_provider_request():
         return MANUAL
 
     request = Request(
