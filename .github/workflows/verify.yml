@@ -49,6 +49,8 @@ jobs:
         with:
           gradle-version: '8.11.1'
       - run: gradle -p android :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
+        env:
+          LOCKDOWN_ASSESSMENT_URL: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LOCKDOWN_ASSESSMENT_URL || '' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: lockdown-debug-apk
