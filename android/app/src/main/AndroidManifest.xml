@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:label="Lockdown" android:allowBackup="false">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:usesCleartextTraffic="false" android:label="Lockdown" android:allowBackup="false">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
