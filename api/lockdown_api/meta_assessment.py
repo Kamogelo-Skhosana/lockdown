@@ -1,13 +1,16 @@
 """Stateless Meta Model API adapter for Lockdown incident triage."""
 
 import json
+import logging
 import os
 from collections import deque
 from threading import Lock
 from time import monotonic
 from typing import Any
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+logger = logging.getLogger(__name__)
 
 ENDPOINT = "https://api.meta.ai/v1/responses"
 ACTION_IDS = frozenset({
@@ -106,7 +109,16 @@ def assess_with_meta(description: str) -> dict[str, Any]:
         with urlopen(request, timeout=8) as response:
             raw = response.read(65537)
         if len(raw) > 65536:
+            logger.warning("Meta assessment fallback: response too large")
             return MANUAL
-        return parse_assessment(json.loads(raw))
-    except (URLError, OSError, ValueError, RecursionError):
-        return MANUAL
+        assessment = parse_assessment(json.loads(raw))
+        if assessment == MANUAL:
+            logger.warning("Meta assessment fallback: response failed validation")
+        return assessment
+    except HTTPError as error:
+        logger.warning("Meta assessment fallback: upstream HTTP %d", error.code)
+    except (URLError, OSError):
+        logger.warning("Meta assessment fallback: transport error")
+    except (ValueError, RecursionError):
+        logger.warning("Meta assessment fallback: invalid response encoding or JSON")
+    return MANUAL
