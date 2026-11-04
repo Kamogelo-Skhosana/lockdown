@@ -68,3 +68,28 @@ def test_disabled_provider_does_not_make_network_request(monkeypatch):
 
     monkeypatch.setattr(meta, "urlopen", unexpected_request)
     assert meta.assess_with_meta("Synthetic incident") == {"mode": "manual"}
+
+
+@pytest.mark.parametrize("limit", ["0", "-1", "invalid"])
+def test_provider_budget_rejects_invalid_or_exhausted_limit(monkeypatch, limit):
+    monkeypatch.setenv("META_MODEL_REQUEST_LIMIT", limit)
+    monkeypatch.setattr(meta, "_requests_started", 0)
+    assert not meta.reserve_provider_request()
+
+
+def test_provider_timeout_consumes_attempt_and_prevents_next_call(monkeypatch):
+    monkeypatch.setenv("META_MODEL_API_ENABLED", "true")
+    monkeypatch.setenv("META_MODEL_API_KEY", "synthetic")
+    monkeypatch.setenv("META_MODEL_ID", "test-model")
+    monkeypatch.setenv("META_MODEL_REQUEST_LIMIT", "1")
+    monkeypatch.setattr(meta, "_requests_started", 0)
+    calls = []
+
+    def timeout(request, timeout):
+        calls.append(request)
+        raise TimeoutError()
+
+    monkeypatch.setattr(meta, "urlopen", timeout)
+    assert meta.assess_with_meta("Synthetic incident") == {"mode": "manual"}
+    assert meta.assess_with_meta("Synthetic incident") == {"mode": "manual"}
+    assert len(calls) == 1
