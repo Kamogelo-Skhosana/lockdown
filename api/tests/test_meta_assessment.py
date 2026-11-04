@@ -56,3 +56,15 @@ def test_request_is_bounded_and_stateless(monkeypatch):
 
     monkeypatch.setattr(meta, "urlopen", send)
     assert meta.assess_with_meta("Synthetic incident")["mode"] == "meta"
+
+
+def test_disabled_provider_does_not_make_network_request(monkeypatch):
+    monkeypatch.setenv("META_MODEL_API_ENABLED", "false")
+    monkeypatch.setenv("META_MODEL_API_KEY", "synthetic")
+    monkeypatch.setenv("META_MODEL_ID", "test-model")
+
+    def unexpected_request(*args, **kwargs):
+        pytest.fail("Disabled provider made a network request")
+
+    monkeypatch.setattr(meta, "urlopen", unexpected_request)
+    assert meta.assess_with_meta("Synthetic incident") == {"mode": "manual"}
