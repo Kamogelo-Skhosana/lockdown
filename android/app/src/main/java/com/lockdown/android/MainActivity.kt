@@ -2,6 +2,8 @@ package com.lockdown.android
 
 import android.content.Context
 import android.os.Bundle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.activity.ComponentActivity
@@ -46,7 +48,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, AccountAccess, Checklist, History, Settings, Help }
+private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, Analyzing, AssessmentReview, AccountAccess, Checklist, History, Settings, Help }
 
 private enum class Appearance { System, Light, Dark }
 
@@ -92,6 +94,8 @@ private fun EmergencyFlow(appearance: Appearance, onAppearanceChange: (Appearanc
     var saveProgress by remember { mutableStateOf(storage.getBoolean("enabled", false)) }
     var completed by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     var draft by remember { mutableStateOf("") }
+    var assessment by remember { mutableStateOf<Assessment?>(null) }
+    var assessmentFailed by remember { mutableStateOf(false) }
     var draftError by remember { mutableStateOf(false) }
     var savedPlans by remember { mutableStateOf(Incident.entries.filter { storage.contains(it.name) }) }
     var confirmClearHistory by remember { mutableStateOf(false) }
@@ -115,6 +119,7 @@ private fun EmergencyFlow(appearance: Appearance, onAppearanceChange: (Appearanc
             Screen.Help -> Screen.Settings
             Screen.Description -> Screen.Incident
             Screen.Consent -> Screen.Description
+            Screen.Analyzing, Screen.AssessmentReview -> Screen.Consent
             Screen.AccountAccess -> {
                 incident = Incident.Account
                 accountAccessBack
@@ -155,11 +160,22 @@ private fun EmergencyFlow(appearance: Appearance, onAppearanceChange: (Appearanc
         Screen.Incident -> "Choose an incident"
         Screen.Description -> "Describe what happened"
         Screen.Consent -> "Online analysis"
+        Screen.Analyzing -> "Checking your report"
+        Screen.AssessmentReview -> "Assessment review"
         Screen.AccountAccess -> "Can you still sign in?"
         Screen.Checklist -> "Secure what you can"
         Screen.History -> "Recovery history"
         Screen.Settings -> "Settings"
         Screen.Help -> "Help"
+    }
+
+    LaunchedEffect(screen) {
+        if (screen == Screen.Analyzing) {
+            val result = withContext(Dispatchers.IO) { requestAssessment(draft) }
+            assessment = result
+            assessmentFailed = result == null
+            screen = if (result == null) Screen.Consent else Screen.AssessmentReview
+        }
     }
 
     if (confirmClearHistory) {
@@ -298,8 +314,20 @@ private fun EmergencyFlow(appearance: Appearance, onAppearanceChange: (Appearanc
                         )
                     }
                     Screen.Consent -> {
-                        Text("Online analysis is optional and is currently unavailable.")
+                        if (BuildConfig.ASSESSMENT_URL.isBlank()) {
+                            Text("Online analysis is unavailable in this build.")
+                        } else {
+                            Text("Send your description to Lockdown for analysis by Meta. Remove sensitive information before submitting.")
+                            if (assessmentFailed) Text("Online analysis is unavailable. Try again or continue offline.")
+                        }
                         Text("You can get protective steps on this device without sharing incident details.")
+                    }
+                    Screen.Analyzing -> CircularProgressIndicator()
+                    Screen.AssessmentReview -> {
+                        assessment?.let { result ->
+                            Text("Provisional risk: ${result.risk}")
+                            result.actions.forEach { Text(it) }
+                        }
                     }
                     Screen.AccountAccess -> {
                         Text("Choose the option that matches what you can do from a trusted device.")
@@ -394,9 +422,16 @@ private fun EmergencyFlow(appearance: Appearance, onAppearanceChange: (Appearanc
                         SecondaryAction("Continue offline", ::continueOffline)
                     }
                     Screen.Consent -> {
-                        Action("Continue offline", ::continueOffline)
+                        if (BuildConfig.ASSESSMENT_URL.isNotBlank() && draft.isNotBlank()) {
+                            Action("Agree and analyse") { screen = Screen.Analyzing }
+                            SecondaryAction("Continue offline", ::continueOffline)
+                        } else {
+                            Action("Continue offline", ::continueOffline)
+                        }
                         SecondaryAction("Back to description", ::goBack)
                     }
+                    Screen.Analyzing -> SecondaryAction("Cancel analysis", ::goBack)
+                    Screen.AssessmentReview -> Action("Open recovery steps", ::continueOffline)
                     Screen.AccountAccess -> {
                         Action("I’m not sure") { openChecklist(Incident.Account) }
                         SecondaryAction("Back", ::goBack)
