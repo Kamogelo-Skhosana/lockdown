@@ -9,6 +9,23 @@ val releaseStorePassword = providers.environmentVariable("LOCKDOWN_STORE_PASSWOR
 val releaseKeyAlias = providers.environmentVariable("LOCKDOWN_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("LOCKDOWN_KEY_PASSWORD").orNull
 
+val releaseStoreExists = releaseStore?.let { rootProject.file(it).isFile } ?: false
+val releaseCredentialsPresent = listOf(
+    releaseStore, releaseStorePassword, releaseKeyAlias, releaseKeyPassword,
+).none { it.isNullOrBlank() }
+
+val checkLockdownReleaseSigning = tasks.register("checkLockdownReleaseSigning") {
+    doLast {
+        check(releaseCredentialsPresent && releaseStoreExists) {
+            "Release signing requires a valid LOCKDOWN_KEYSTORE file and all three signing credentials. See docs/android-release.md."
+        }
+    }
+}
+
+tasks.matching { it.name == "packageRelease" || it.name == "bundleRelease" }.configureEach {
+    dependsOn(checkLockdownReleaseSigning)
+}
+
 android {
     if (releaseStore != null && releaseStorePassword != null &&
         releaseKeyAlias != null && releaseKeyPassword != null
