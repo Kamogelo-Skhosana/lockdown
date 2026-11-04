@@ -31,13 +31,22 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, Checklist }
+private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, AccountAccess, Checklist }
 
 private enum class Incident(val label: String, val steps: List<String>) {
     Account("Account takeover", listOf(
         "On a trusted device, open the provider’s official app or website.",
         "If you can sign in, change your password and remove unfamiliar sessions.",
         "If you can’t sign in, use the provider’s official account recovery process.",
+    )),
+    AccountWithAccess("Secure your account", listOf(
+        "From a trusted device, open the provider’s official app or site and change your password.",
+        "Review active sessions and sign out unfamiliar devices.",
+        "Turn on two-step verification in the provider’s security settings.",
+    )),
+    AccountLockedOut("Recover account access", listOf(
+        "From a trusted device, open the provider’s official account recovery page.",
+        "Follow the provider’s recovery steps and secure the email used to recover the account.",
     )),
     Message("Suspicious message", listOf(
         "Leave the message open only if needed to report it. Avoid its links and attachments.",
@@ -72,6 +81,8 @@ private fun EmergencyFlow() {
     var incident by rememberSaveable { mutableStateOf(Incident.Unknown) }
     var checklistBack by rememberSaveable { mutableStateOf(Screen.Incident) }
 
+    var accountAccessBack by rememberSaveable { mutableStateOf(Screen.Description) }
+
     fun goBack() {
         if (screen == Screen.Description && draft.isNotBlank()) {
             confirmDiscard = true
@@ -84,7 +95,14 @@ private fun EmergencyFlow() {
             Screen.Incident -> Screen.Home
             Screen.Description -> Screen.Incident
             Screen.Consent -> Screen.Description
-            Screen.Checklist -> checklistBack
+            Screen.AccountAccess -> {
+                incident = Incident.Account
+                accountAccessBack
+            }
+            Screen.Checklist -> {
+                if (checklistBack == Screen.AccountAccess) incident = Incident.Account
+                checklistBack
+            }
         }
     }
 
@@ -98,6 +116,15 @@ private fun EmergencyFlow() {
         screen = Screen.Checklist
     }
 
+    fun continueOffline() {
+        if (incident == Incident.Account) {
+            accountAccessBack = screen
+            screen = Screen.AccountAccess
+        } else {
+            openChecklist(incident)
+        }
+    }
+
     BackHandler(enabled = screen != Screen.Splash, onBack = ::goBack)
 
     val title = when (screen) {
@@ -108,6 +135,7 @@ private fun EmergencyFlow() {
         Screen.Incident -> "Choose an incident"
         Screen.Description -> "Describe what happened"
         Screen.Consent -> "Online analysis"
+        Screen.AccountAccess -> "Can you still sign in?"
         Screen.Checklist -> "Secure what you can"
     }
 
@@ -144,7 +172,9 @@ private fun EmergencyFlow() {
                     Screen.Welcome -> Text("Identify what happened and take the first protective step.")
                     Screen.Privacy -> Text("The offline checklist works on this device without an account.")
                     Screen.Home -> Text("Start with the incident. We’ll guide you through the first steps.")
-                    Screen.Incident -> Incident.entries.forEach { option ->
+                    Screen.Incident -> Incident.entries.filter {
+                        it != Incident.AccountWithAccess && it != Incident.AccountLockedOut
+                    }.forEach { option ->
                         OutlinedButton(
                             onClick = {
                                 incident = option
@@ -174,6 +204,11 @@ private fun EmergencyFlow() {
                     Screen.Consent -> {
                         Text("Online analysis is optional and is currently unavailable.")
                         Text("You can get protective steps on this device without sharing incident details.")
+                    }
+                    Screen.AccountAccess -> {
+                        Text("Choose the option that matches what you can do from a trusted device.")
+                        SecondaryAction("Yes, I can sign in") { openChecklist(Incident.AccountWithAccess) }
+                        SecondaryAction("No, I’m locked out") { openChecklist(Incident.AccountLockedOut) }
                     }
                     Screen.Checklist -> {
                         Text(incident.label, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
@@ -242,11 +277,15 @@ private fun EmergencyFlow() {
                                 screen = Screen.Consent
                             }
                         }
-                        SecondaryAction("Continue offline") { openChecklist(incident) }
+                        SecondaryAction("Continue offline", ::continueOffline)
                     }
                     Screen.Consent -> {
-                        Action("Continue offline") { openChecklist(incident) }
+                        Action("Continue offline", ::continueOffline)
                         SecondaryAction("Back to description", ::goBack)
+                    }
+                    Screen.AccountAccess -> {
+                        Action("I’m not sure") { openChecklist(Incident.Account) }
+                        SecondaryAction("Back", ::goBack)
                     }
                     Screen.Checklist -> {
                         Action("Return to Home") {
@@ -254,7 +293,9 @@ private fun EmergencyFlow() {
                             draftError = false
                             screen = Screen.Home
                         }
-                        if (checklistBack == Screen.Incident) {
+                        if (checklistBack == Screen.AccountAccess) {
+                            SecondaryAction("Change account access answer", ::goBack)
+                        } else if (checklistBack == Screen.Incident) {
                             SecondaryAction("Choose another incident", ::goBack)
                         }
                     }
