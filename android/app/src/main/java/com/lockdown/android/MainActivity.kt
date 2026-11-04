@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, AccountAccess, Checklist }
+private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Description, Consent, AccountAccess, Checklist, History }
 
 private enum class Incident(val label: String, val steps: List<String>) {
     Account("Account takeover", listOf(
@@ -78,6 +78,7 @@ private fun EmergencyFlow() {
     var completed by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     var draft by remember { mutableStateOf("") }
     var draftError by remember { mutableStateOf(false) }
+    var confirmClearHistory by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     var screen by rememberSaveable { mutableStateOf(Screen.Splash) }
     var incident by rememberSaveable { mutableStateOf(Incident.Unknown) }
@@ -94,7 +95,7 @@ private fun EmergencyFlow() {
             Screen.Splash -> Screen.Splash
             Screen.Welcome, Screen.Home -> Screen.Splash
             Screen.Privacy -> Screen.Welcome
-            Screen.Incident -> Screen.Home
+            Screen.Incident, Screen.History -> Screen.Home
             Screen.Description -> Screen.Incident
             Screen.Consent -> Screen.Description
             Screen.AccountAccess -> {
@@ -108,11 +109,11 @@ private fun EmergencyFlow() {
         }
     }
 
-    fun openChecklist(selection: Incident) {
+    fun openChecklist(selection: Incident, resume: Boolean = false) {
         checklistBack = screen
         incident = selection
         completed = ArrayList(
-            if (saveProgress) storage.getStringSet(selection.name, emptySet()).orEmpty()
+            if (resume || saveProgress) storage.getStringSet(selection.name, emptySet()).orEmpty()
             else emptySet(),
         )
         screen = Screen.Checklist
@@ -139,6 +140,27 @@ private fun EmergencyFlow() {
         Screen.Consent -> "Online analysis"
         Screen.AccountAccess -> "Can you still sign in?"
         Screen.Checklist -> "Secure what you can"
+        Screen.History -> "Recovery history"
+    }
+
+    if (confirmClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearHistory = false },
+            title = { Text("Clear recovery history?") },
+            text = { Text("This removes all saved recovery progress from this device.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val editor = storage.edit()
+                    Incident.entries.forEach { editor.remove(it.name) }
+                    editor.apply()
+                    completed = arrayListOf()
+                    confirmClearHistory = false
+                }) { Text("Clear history") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearHistory = false }) { Text("Cancel") }
+            },
+        )
     }
 
     if (confirmDiscard) {
@@ -173,7 +195,21 @@ private fun EmergencyFlow() {
                     Screen.Splash -> Text("Digital incident response")
                     Screen.Welcome -> Text("Identify what happened and take the first protective step.")
                     Screen.Privacy -> Text("The offline checklist works on this device without an account.")
-                    Screen.Home -> Text("Start with the incident. We’ll guide you through the first steps.")
+                    Screen.Home -> {
+                        Text("Start with the incident. We’ll guide you through the first steps.")
+                        SecondaryAction("Recovery history") { screen = Screen.History }
+                    }
+                    Screen.History -> {
+                        val saved = Incident.entries.filter { storage.contains(it.name) }
+                        if (saved.isEmpty()) Text("No saved recovery plans.")
+                        saved.forEach { plan ->
+                            val steps = storage.getStringSet(plan.name, emptySet()).orEmpty()
+                            val count = plan.steps.indices.count { it.toString() in steps }
+                            SecondaryAction("${plan.label} · $count of ${plan.steps.size} complete") {
+                                openChecklist(plan, resume = true)
+                            }
+                        }
+                    }
                     Screen.Incident -> Incident.entries.filter {
                         it != Incident.AccountWithAccess && it != Incident.AccountLockedOut
                     }.forEach { option ->
@@ -282,6 +318,12 @@ private fun EmergencyFlow() {
                         SecondaryAction("Open offline checklist") { openChecklist(Incident.Unknown) }
                     }
                     Screen.Incident -> SecondaryAction("Back to Home", ::goBack)
+                    Screen.History -> {
+                        if (Incident.entries.any { storage.contains(it.name) }) {
+                            Action("Clear history") { confirmClearHistory = true }
+                        }
+                        SecondaryAction("Back to Home", ::goBack)
+                    }
                     Screen.Description -> {
                         Action("Review online analysis") {
                             if (draft.isBlank() || draft.encodeToByteArray().size > 4096) {
