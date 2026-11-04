@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Checklist }
+private enum class Screen { Splash, Welcome, Privacy, Home, Incident, Consent, Checklist }
 
 private enum class Incident(val label: String, val steps: List<String>) {
     Account("Account takeover", listOf(
@@ -66,6 +66,7 @@ private fun EmergencyFlow() {
             Screen.Welcome, Screen.Home -> Screen.Splash
             Screen.Privacy -> Screen.Welcome
             Screen.Incident -> Screen.Home
+            Screen.Consent -> Screen.Incident
             Screen.Checklist -> checklistBack
         }
     }
@@ -84,6 +85,7 @@ private fun EmergencyFlow() {
         Screen.Privacy -> "You control your data"
         Screen.Home -> "What happened?"
         Screen.Incident -> "Choose an incident"
+        Screen.Consent -> "Online analysis"
         Screen.Checklist -> "Secure what you can"
     }
 
@@ -103,9 +105,16 @@ private fun EmergencyFlow() {
                     Screen.Home -> Text("Start with the incident. We’ll guide you through the first steps.")
                     Screen.Incident -> Incident.entries.forEach { option ->
                         OutlinedButton(
-                            onClick = { openChecklist(option) },
+                            onClick = {
+                                incident = option
+                                screen = Screen.Consent
+                            },
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         ) { Text(option.label) }
+                    }
+                    Screen.Consent -> {
+                        Text("Online analysis is optional and is currently unavailable.")
+                        Text("You can get protective steps on this device without sharing incident details.")
                     }
                     Screen.Checklist -> {
                         Text(incident.label, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
@@ -134,6 +143,10 @@ private fun EmergencyFlow() {
                         SecondaryAction("Open offline checklist") { openChecklist(Incident.Unknown) }
                     }
                     Screen.Incident -> SecondaryAction("Back to Home", ::goBack)
+                    Screen.Consent -> {
+                        Action("Continue offline") { openChecklist(incident) }
+                        SecondaryAction("Choose another incident", ::goBack)
+                    }
                     Screen.Checklist -> {
                         Action("Return to Home") { screen = Screen.Home }
                         if (checklistBack == Screen.Incident) {
