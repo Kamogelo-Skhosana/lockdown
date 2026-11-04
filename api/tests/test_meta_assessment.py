@@ -51,7 +51,7 @@ def test_request_is_bounded_and_stateless(monkeypatch):
         payload = json.loads(request.data)
         assert timeout == 8
         assert payload["store"] is False
-        assert payload["max_output_tokens"] == 512
+        assert payload["max_output_tokens"] == meta.MAX_OUTPUT_TOKENS
         assert payload["input"] == "Synthetic incident"
         return io.BytesIO(json.dumps(response("medium", ["contact_bank"])).encode())
 
@@ -120,3 +120,11 @@ def test_fenced_json_still_requires_approved_actions(action, expected_mode):
     part = payload["output"][0]["content"][0]
     part["text"] = "```json\n" + part["text"] + "\n```"
     assert meta.parse_assessment(payload)["mode"] == expected_mode
+
+
+def test_incomplete_response_still_falls_back(caplog):
+    payload = response("high", ["official_account_recovery"])
+    payload["status"] = "incomplete"
+    payload["incomplete_details"] = {"reason": "max_output_tokens"}
+    assert meta.parse_assessment(payload) == {"mode": "manual"}
+    assert "output token limit reached" in caplog.text
