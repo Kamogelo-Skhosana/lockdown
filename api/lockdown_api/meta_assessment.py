@@ -22,6 +22,7 @@ ACTION_IDS = frozenset({
 })
 MANUAL = {"mode": "manual"}
 DEFAULT_REQUEST_LIMIT = 30
+MAX_OUTPUT_TOKENS = 1024
 _request_lock = Lock()
 _requests_started = 0
 _recent_attempts: deque[float] = deque()
@@ -51,7 +52,11 @@ def reserve_provider_request() -> bool:
 
 def parse_assessment(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("status") != "completed":
-        logger.warning("Meta assessment validation: response did not complete")
+        details = payload.get("incomplete_details") if isinstance(payload, dict) else None
+        if isinstance(details, dict) and details.get("reason") == "max_output_tokens":
+            logger.warning("Meta assessment validation: output token limit reached")
+        else:
+            logger.warning("Meta assessment validation: response did not complete")
         return MANUAL
 
     try:
@@ -106,7 +111,7 @@ def assess_with_meta(description: str) -> dict[str, Any]:
             ),
             "input": description,
             "store": False,
-            "max_output_tokens": 512,
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
         }).encode("utf-8"),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         method="POST",
