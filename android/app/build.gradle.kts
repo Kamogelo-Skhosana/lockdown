@@ -4,7 +4,28 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
 }
 
+val releaseStore = providers.environmentVariable("LOCKDOWN_KEYSTORE").orNull
+val releaseStorePassword = providers.environmentVariable("LOCKDOWN_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("LOCKDOWN_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("LOCKDOWN_KEY_PASSWORD").orNull
+
 android {
+    if (releaseStore != null && releaseStorePassword != null &&
+        releaseKeyAlias != null && releaseKeyPassword != null
+    ) {
+        signingConfigs {
+            create("lockdownRelease") {
+                storeFile = rootProject.file(releaseStore)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+        buildTypes.named("release") {
+            signingConfig = signingConfigs.getByName("lockdownRelease")
+        }
+    }
+
     namespace = "com.lockdown.android"
     compileSdk = 35
 
