@@ -9,6 +9,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -220,19 +222,30 @@ private fun EmergencyFlow() {
                         incident.steps.forEachIndexed { index, step ->
                             val id = index.toString()
                             val checked = id in completed
-                            OutlinedButton(
-                                onClick = {
-                                    val updated = completed.toMutableSet()
-                                    if (checked) updated.remove(id) else updated.add(id)
-                                    completed = ArrayList(updated)
-                                    if (saveProgress) {
-                                        storage.edit().putStringSet(incident.name, updated).apply()
+                            OutlinedCard {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                                        .toggleable(
+                                            value = checked,
+                                            role = Role.Checkbox,
+                                            onValueChange = { isComplete ->
+                                                val updated = completed.toMutableSet()
+                                                if (isComplete) updated.add(id) else updated.remove(id)
+                                                completed = ArrayList(updated)
+                                                if (saveProgress) {
+                                                    storage.edit().putStringSet(incident.name, updated).apply()
+                                                }
+                                            },
+                                        ).padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Checkbox(checked = checked, onCheckedChange = null)
+                                    Column(Modifier.weight(1f)) {
+                                        Text(if (checked) "Completed" else "To do", style = MaterialTheme.typography.labelLarge)
+                                        Text("${index + 1}. $step")
                                     }
-                                },
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                            ) {
-                                val status = if (checked) "Complete" else "To do"
-                                Text("${index + 1}. $step\n$status")
+                                }
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
