@@ -30,6 +30,9 @@ android {
     compileSdk = 35
 
     defaultConfig {
+        val endpoint = providers.environmentVariable("LOCKDOWN_ASSESSMENT_URL").orElse("").get()
+        require(endpoint.all { it.isLetterOrDigit() || it in ":/.-_" }) { "Invalid assessment URL" }
+        buildConfigField("String", "ASSESSMENT_URL", "\"$endpoint\"")
         applicationId = "com.lockdown.android"
         minSdk = 24
         targetSdk = 35
@@ -44,6 +47,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
