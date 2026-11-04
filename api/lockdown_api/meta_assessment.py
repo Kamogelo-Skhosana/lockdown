@@ -51,6 +51,7 @@ def reserve_provider_request() -> bool:
 
 def parse_assessment(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("status") != "completed":
+        logger.warning("Meta assessment validation: response did not complete")
         return MANUAL
 
     try:
@@ -59,8 +60,13 @@ def parse_assessment(payload: Any) -> dict[str, Any]:
             for item in payload["output"] if item["type"] == "message"
             for part in item["content"] if part["type"] == "output_text"
         ]
-        result = json.loads("".join(chunks))
+        output = "".join(chunks).strip()
+        lines = output.splitlines()
+        if len(lines) >= 3 and lines[0].lower() in ("```json", "```") and lines[-1] == "```":
+            output = "\n".join(lines[1:-1])
+        result = json.loads(output)
     except (KeyError, TypeError, ValueError, RecursionError):
+        logger.warning("Meta assessment validation: missing or invalid JSON output")
         return MANUAL
 
     if not isinstance(result, dict) or set(result) != {"risk", "action_ids"}:
