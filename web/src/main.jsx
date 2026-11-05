@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
+import OnlineAssessment from './OnlineAssessment.jsx';
 
 const plans = {
   account: ['Account takeover', [
@@ -97,9 +98,11 @@ function App() {
             <p className="note">Checklist progress stays on this page until you reload or close it.</p>
           </section>
         </div>
+        <OnlineAssessment />
       </main>
     </>
   );
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+
